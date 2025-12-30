@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>3D 流光爱心</title>
+    <title>3D 爱心粒子 - 增强亮度律动</title>
     <style>
         body {
             margin: 0;
@@ -13,217 +13,312 @@
             justify-content: center;
             align-items: center;
             height: 100vh;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         }
-
         canvas {
             position: absolute;
             width: 100%;
             height: 100%;
             z-index: 1;
         }
-
-        /* 文字容器 */
         .text-container {
             position: absolute;
             z-index: 10;
-            text-align: center;
-            width: 100%;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            pointer-events: none; /* 让点击穿透 */
-            mix-blend-mode: screen; /* 混合模式，让文字融入光效 */
+            text-align: center;
+            pointer-events: none;
+            width: 80%;
         }
-
-        /* 主标题 */
-        .main-title {
-            font-size: 2.5rem;
+        .main-text {
+            font-size: 3rem;
             font-weight: 800;
-            letter-spacing: 2px;
-            /* 动态渐变字色 */
-            background: linear-gradient(to right, #ff00cc, #3333ff, #ff00cc);
-            background-size: 200% auto;
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            animation: textFlow 3s linear infinite, float 3s ease-in-out infinite;
-        }
-
-        /* 副标题 */
-        .sub-title {
-            font-size: 1rem;
-            margin-top: 10px;
-            font-weight: 300;
             color: #fff;
+            text-shadow: 0 0 15px rgba(255, 50, 100, 0.8), 0 0 30px rgba(255, 50, 100, 0.4);
+            letter-spacing: 2px;
+            font-family: 'Times New Roman', serif;
+            font-style: italic;
+            margin-bottom: 5px;
+        }
+        .sub-text {
+            font-size: 1rem;
+            color: #ffb6c1;
+            font-weight: 300;
+            letter-spacing: 4px;
+            text-transform: uppercase;
             opacity: 0.8;
-            letter-spacing: 1px;
-            animation: colorPulse 4s infinite alternate;
         }
-
-        /* 简单的文字浮动动画 */
-        @keyframes float {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-10px); }
-        }
-
-        /* 文字流光动画 */
-        @keyframes textFlow {
-            to { background-position: 200% center; }
-        }
-        
-        /* 副标题颜色脉冲 */
-        @keyframes colorPulse {
-            0% { color: #ff9a9e; text-shadow: 0 0 10px #ff9a9e; }
-            100% { color: #a18cd1; text-shadow: 0 0 10px #a18cd1; }
-        }
-
     </style>
 </head>
 <body>
-
     <canvas id="canvas"></canvas>
-
-    <!-- 在此处修改文字 -->
     <div class="text-container">
-        <div class="main-title">Happy New Year's Day</div>
-        <div class="sub-title">May the coming year bring you as much joy and happiness as you've brought into my life.</div>
+        <div class="main-text">Happy New Year's Day</div>
+        <div class="sub-text">May the coming year bring you </br>as much joy and happiness as you've brought into my life.</div>
     </div>
 
     <script>
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
-
         let width, height;
         let particles = [];
         
-        // 核心配置
-        const AMOUNT = 600; // 粒子数量，手机端建议 500-800，电脑端可 1000+
-        const SCALE = 15;   // 爱心基础大小
-        const SPEED = 0.002; // 旋转速度
-
-        // 3D 投影参数
-        const PROJECTION_CENTER_X = width / 2;
-        const PROJECTION_CENTER_Y = height / 2;
-        const FIELD_OF_VIEW = 600; // 视距，越小透视越强
-
+        const PARTICLE_COUNT = 1600;
+        const HEART_SIZE = 15;
+        
+        // 增强内部律动参数
+        const INTERNAL_MOTION_AMPLITUDE = 2.5; // 增加内部粒子浮动幅度
+        const INTERNAL_MOTION_SPEED = 0.005;   // 增加内部粒子浮动速度
+        
+        // 亮度变化参数
+        const BRIGHTNESS_AMPLITUDE = 0.4;     // 亮度变化幅度
+        const BRIGHTNESS_SPEED = 0.006;       // 亮度变化速度
+        
+        // 爱心整体朝向的初始角度
+        let heartTiltX = -Math.PI / 6; // 爱心绕X轴的基础倾斜角度，使正面朝向用户
+        let heartTiltY = 0; // 爱心绕Y轴的基础旋转角度
+        
         function resize() {
             width = canvas.width = window.innerWidth;
             height = canvas.height = window.innerHeight;
-            // 重新初始化中心点
-            particles.forEach(p => {
-                p.cx = width / 2;
-                p.cy = height / 2;
-            });
+            if(particles.length > 0) {
+                 particles.forEach(p => {
+                    p.cx = width / 2;
+                    p.cy = height / 2;
+                });
+            }
         }
         window.addEventListener('resize', resize);
 
-        // 3D 粒子类
         class Particle {
-            constructor(index) {
-                this.init(index);
-            }
-
-            init(index) {
-                // 利用数学公式在 3D 空间生成爱心形状
-                // 我们可以使用 2D 爱心公式，赋予它随机的 Z 轴厚度，或者使用球体映射
-                
-                // 这里使用经典的参数方程生成分布
-                // $$ x = 16\sin^3(t) $$
-                // $$ y = -(13\cos(t) - 5\cos(2t) - 2\cos(3t) - \cos(4t)) $$
-                
-                let t = Math.random() * Math.PI * 2;
-                
-                // 随机化半径，填充爱心内部，而不仅仅是边缘
-                // 使用 sqrt(random) 保证分布均匀
-                let r = Math.sqrt(Math.random()); 
-                
-                // 基础 2D 坐标
-                let x = 16 * Math.pow(Math.sin(t), 3);
-                let y = -(13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t));
-                
-                // 增加 3D 维度 (Z轴)
-                // 让粒子在 Z 轴上有厚度，形成一个立体的爱心
-                // 靠近边缘的粒子 Z 轴范围小，靠近中心的 Z 轴范围大，形成圆润感
-                let depth = (2 - Math.abs(x)/10) * 4; 
-                let z = (Math.random() - 0.5) * depth * 5; 
-
-                // 缩放
-                this.x = x * SCALE * r;
-                this.y = y * SCALE * r;
-                this.z = z * SCALE; // Z 轴也缩放
-
-                // 原始坐标备份（用于旋转计算）
-                this.ox = this.x;
-                this.oy = this.y;
-                this.oz = this.z;
-
+            constructor() {
                 this.cx = width / 2;
                 this.cy = height / 2;
-                
-                // 粒子自身的大小
-                this.size = Math.random() * 2 + 1;
+                this.init();
             }
 
-            draw(angle, tick) {
-                // 1. 3D 旋转计算 (绕 Y 轴旋转)
-                // 旋转公式：
-                // $$ x' = x\cos\theta - z\sin\theta $$
-                // $$ z' = x\sin\theta + z\cos\theta $$
+            init() {
+                while (true) {
+                    let x = (Math.random() * 3) - 1.5;
+                    let y = (Math.random() * 3) - 1.5;
+                    let z = (Math.random() * 3) - 1.5;
+
+                    let a = x * x + (9/4) * y * y + z * z - 1;
+                    let result = a * a * a - x * x * z * z * z - (9/80) * y * y * z * z * z;
+
+                    if (result < 0) {
+                        // 存储原始位置
+                        this.originalX = x;
+                        this.originalY = y;
+                        this.originalZ = z;
+                        
+                        // 放大坐标
+                        this.ox = x * HEART_SIZE * 10;
+                        this.oy = -y * HEART_SIZE * 10;
+                        this.oz = z * HEART_SIZE * 10;
+                        
+                        // 为每个粒子生成随机相位
+                        this.phaseX = Math.random() * Math.PI * 2;
+                        this.phaseY = Math.random() * Math.PI * 2;
+                        this.phaseZ = Math.random() * Math.PI * 2;
+                        
+                        // 亮度变化相位
+                        this.brightnessPhase = Math.random() * Math.PI * 2;
+                        this.colorPhase = Math.random() * Math.PI * 2;
+                        
+                        // 计算到爱心中心的距离（用于控制律动幅度）
+                        this.distanceFromCenter = Math.sqrt(x*x + y*y + z*z);
+                        
+                        // 基础颜色：基于位置混合粉色和红色
+                        this.baseHue = 330 + this.distanceFromCenter * 20;
+                        
+                        // 增强颜色差异
+                        this.colorOffset = Math.random() * 20 - 10; // 每个粒子颜色略有不同
+                        
+                        this.size = Math.random() * 1.5 + 0.5;
+                        
+                        // 内部律动参数
+                        this.internalMotionAmplitude = INTERNAL_MOTION_AMPLITUDE;
+                        this.internalMotionSpeed = INTERNAL_MOTION_SPEED;
+                        break;
+                    }
+                }
+            }
+
+            draw(beatScale, time) {
+                // 1. 计算内部粒子的律动偏移
+                // 距离爱心中心越近的粒子，律动幅度越小；边缘粒子律动幅度更大
+                let internalOffsetMultiplier = Math.max(0.2, this.distanceFromCenter * 0.9);
                 
-                let rx = this.ox * Math.cos(angle) - this.oz * Math.sin(angle);
-                let rz = this.ox * Math.sin(angle) + this.oz * Math.cos(angle);
-                // 加上一点点 X 轴旋转，让它看起来稍微仰视一点
-                let ry = this.oy; 
-
-                // 2. 投影到 2D 屏幕 (Perspective Projection)
-                // $$ scale = \frac{f}{f + z} $$
-                let scale = FIELD_OF_VIEW / (FIELD_OF_VIEW + rz);
+                // 使用正弦波生成平滑的周期性运动
+                let internalX = Math.sin(time + this.phaseX) * this.internalMotionAmplitude * internalOffsetMultiplier;
+                let internalY = Math.sin(time * 0.8 + this.phaseY) * this.internalMotionAmplitude * internalOffsetMultiplier;
+                let internalZ = Math.cos(time * 0.7 + this.phaseZ) * this.internalMotionAmplitude * internalOffsetMultiplier * 0.5;
                 
-                let x2d = rx * scale + width / 2;
-                let y2d = ry * scale + height / 2;
-
-                // 3. 计算颜色 (动态流光)
-                // HSL 色相随时间 (tick) 和位置 (rx) 变化
-                // 使得左边和右边的颜色不一样，产生渐变感
-                let hue = (tick + rx * 2) % 360; 
-                let alpha = scale; // 离得越远越透明
-
-                // 4. 绘制
-                ctx.fillStyle = `hsla(${hue}, 80%, 60%, ${alpha})`;
-                ctx.beginPath();
-                // 离得近的粒子画大一点
-                ctx.arc(x2d, y2d, this.size * scale, 0, Math.PI * 2); 
-                ctx.fill();
+                // 2. 应用内部律动偏移到原始坐标
+                let tx = this.ox + internalX;
+                let ty = this.oy + internalY;
+                let tz = this.oz + internalZ;
+                
+                // 3. 应用心跳缩放
+                tx *= beatScale;
+                ty *= beatScale;
+                tz *= beatScale;
+                
+                // 4. 应用整体爱心倾斜（使爱心正面朝向用户）
+                // 先绕Y轴旋转
+                let x1 = tx * Math.cos(heartTiltY) - tz * Math.sin(heartTiltY);
+                let z1 = tx * Math.sin(heartTiltY) + tz * Math.cos(heartTiltY);
+                
+                // 再绕X轴旋转
+                let y1 = ty * Math.cos(heartTiltX) - z1 * Math.sin(heartTiltX);
+                let z2 = ty * Math.sin(heartTiltX) + z1 * Math.cos(heartTiltX);
+                
+                // 5. 透视投影
+                let fov = 600;
+                let scale = fov / (fov + z2);
+                
+                if (scale > 0) {
+                    let x2d = x1 * scale + this.cx;
+                    let y2d = y1 * scale + this.cy;
+                    
+                    // 6. 增强粒子大小和亮度变化
+                    // 大小变化
+                    let sizeVariation = 1 + Math.sin(time + this.phaseX) * 0.3;
+                    
+                    // 亮度变化 - 使用更强的变化幅度
+                    let brightnessVariation = 1 + Math.sin(time * 2 + this.brightnessPhase) * BRIGHTNESS_AMPLITUDE;
+                    
+                    // 颜色饱和度变化
+                    let saturationVariation = 0.8 + Math.sin(time * 1.5 + this.colorPhase) * 0.2;
+                    
+                    // 透明度变化 - 增加变化范围
+                    let alphaVariation = 0.6 + Math.sin(time + this.phaseY) * 0.4;
+                    
+                    // 颜色动态变化
+                    let hueVariation = Math.sin(time * 0.5 + this.brightnessPhase) * 5;
+                    
+                    // 计算最终颜色
+                    let hue = (this.baseHue + this.colorOffset + hueVariation) % 360;
+                    let saturation = saturationVariation * 100;
+                    let lightness = 60 * brightnessVariation; // 动态亮度
+                    
+                    // 确保亮度在合理范围内
+                    lightness = Math.max(40, Math.min(80, lightness));
+                    
+                    // 绘制圆形粒子
+                    ctx.beginPath();
+                    let alpha = scale * alphaVariation;
+                    ctx.fillStyle = `hsla(${hue}, ${saturation}%, ${lightness}%, ${alpha})`;
+                    ctx.arc(x2d, y2d, this.size * scale * sizeVariation, 0, Math.PI * 2);
+                    ctx.fill();
+                    
+                    // 添加发光效果
+                    ctx.beginPath();
+                    ctx.arc(x2d, y2d, this.size * scale * sizeVariation * 1.2, 0, Math.PI * 2);
+                    ctx.fillStyle = `hsla(${hue}, ${saturation}%, ${lightness}%, ${alpha * 0.3})`;
+                    ctx.fill();
+                }
             }
         }
 
-        function initParticles() {
+        function init() {
             resize();
             particles = [];
-            for (let i = 0; i < AMOUNT; i++) {
-                particles.push(new Particle(i));
+            for (let i = 0; i < PARTICLE_COUNT; i++) {
+                particles.push(new Particle());
             }
+            
+            // 添加鼠标/触摸交互，让用户可以调整爱心朝向
+            let isDragging = false;
+            let lastX, lastY;
+            
+            canvas.addEventListener('mousedown', (e) => {
+                isDragging = true;
+                lastX = e.clientX;
+                lastY = e.clientY;
+            });
+            
+            canvas.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+                
+                let deltaX = e.clientX - lastX;
+                let deltaY = e.clientY - lastY;
+                
+                // 根据鼠标移动调整爱心整体朝向
+                heartTiltY += deltaX * 0.01;
+                heartTiltX += deltaY * 0.01;
+                
+                // 限制X轴旋转角度，避免爱心翻转过度
+                heartTiltX = Math.max(-Math.PI/2, Math.min(Math.PI/2, heartTiltX));
+                
+                lastX = e.clientX;
+                lastY = e.clientY;
+            });
+            
+            canvas.addEventListener('mouseup', () => {
+                isDragging = false;
+            });
+            
+            canvas.addEventListener('mouseleave', () => {
+                isDragging = false;
+            });
+            
+            // 触摸事件支持
+            canvas.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                isDragging = true;
+                lastX = e.touches[0].clientX;
+                lastY = e.touches[0].clientY;
+            });
+            
+            canvas.addEventListener('touchmove', (e) => {
+                if (!isDragging) return;
+                e.preventDefault();
+                
+                let deltaX = e.touches[0].clientX - lastX;
+                let deltaY = e.touches[0].clientY - lastY;
+                
+                heartTiltY += deltaX * 0.01;
+                heartTiltX += deltaY * 0.01;
+                
+                heartTiltX = Math.max(-Math.PI/2, Math.min(Math.PI/2, heartTiltX));
+                
+                lastX = e.touches[0].clientX;
+                lastY = e.touches[0].clientY;
+            });
+            
+            canvas.addEventListener('touchend', () => {
+                isDragging = false;
+            });
         }
 
-        let angle = 0;
-        let tick = 0; // 时间戳，用于控制颜色
-
         function animate() {
-            // 清除画布，使用带透明度的黑色，形成轻微拖尾
-            ctx.fillStyle = "rgba(0, 0, 0, 0.15)";
+            // 使用更浅的背景色清除，增加拖尾效果
+            ctx.fillStyle = "rgba(0, 0, 0, 0.3)";
             ctx.fillRect(0, 0, width, height);
-
-            angle += SPEED; // 增加旋转角度
-            tick += 1;      // 增加颜色流转速度
-
-            particles.forEach(p => p.draw(angle, tick));
-
+            
+            // 获取当前时间
+            let time = Date.now() * INTERNAL_MOTION_SPEED;
+            
+            // 计算心跳效果（呼吸效果）
+            // 使用两个不同频率的正弦波叠加，创造更自然的呼吸节奏
+            let beatTime = Date.now() * 0.0015; // 减慢心跳速度
+            // 主心跳频率
+            let beatScale1 = 0.02 * Math.pow(Math.sin(beatTime), 4);
+            // 次心跳频率，创造更丰富的呼吸感
+            let beatScale2 = 0.01 * Math.pow(Math.sin(beatTime * 1.5), 4);
+            let beatScale = 1 + beatScale1 + beatScale2;
+            
+            // 绘制所有粒子
+            particles.forEach(p => p.draw(beatScale, time));
+            
             requestAnimationFrame(animate);
         }
 
-        initParticles();
+        init();
         animate();
-
     </script>
 </body>
 </html>
