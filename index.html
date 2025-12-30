@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>浪漫粒子爱心</title>
+    <style>
+        /* 页面基础样式：黑色背景，无滚动条 */
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+        }
+
+        /* 画布样式 */
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        /* 文字样式：悬浮在爱心中间，发光效果 */
+        .content {
+            position: absolute;
+            z-index: 2;
+            color: #ffc0cb; /* 浅粉色文字 */
+            text-align: center;
+            pointer-events: none; /* 让点击穿透文字，不影响交互 */
+            animation: breathe 2s infinite ease-in-out; /* 呼吸灯动画 */
+            width: 100%;
+            top: 48%; /* 稍微偏上一点视觉更平衡 */
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        /* 修改文字的主要区域 */
+        .main-text {
+            font-size: 24px;
+            font-weight: bold;
+            text-shadow: 0 0 15px rgba(255, 192, 203, 0.8);
+            margin-bottom: 8px;
+        }
+
+        .sub-text {
+            font-size: 14px;
+            color: #d87093;
+            text-shadow: 0 0 10px rgba(216, 112, 147, 0.6);
+        }
+
+        /* 呼吸动画关键帧 */
+        @keyframes breathe {
+            0%, 100% { opacity: 0.8; transform: translate(-50%, -50%) scale(1); }
+            50% { opacity: 1; transform: translate(-50%, -50%) scale(1.05); }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 画布区域 -->
+    <canvas id="heartCanvas"></canvas>
+
+    <!-- 文字区域：请在这里修改文字 -->
+    <div class="content">
+        <div class="main-text">Happy New Year's Day</div>
+        <div class="sub-text">May the coming year bring you as much joy and happiness as you've brought into my life.</div>
+    </div>
+
+    <script>
+        /* 
+         * 动态粒子爱心核心逻辑 
+         * 使用参数方程生成心形路径
+         */
+        const canvas = document.getElementById('heartCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        let width, height;
+        let particles = [];
+        
+        // 爱心参数方程 $$ x = 16\sin^3(t) $$
+        // $$ y = 13\cos(t) - 5\cos(2t) - 2\cos(3t) - \cos(4t) $$
+        function heartFunction(t, scale = 11) { // scale控制爱心大小
+            let x = 16 * Math.pow(Math.sin(t), 3);
+            let y = -(13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t));
+            return { x: x * scale, y: y * scale };
+        }
+
+        function resize() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+        }
+
+        // 粒子类
+        class Particle {
+            constructor() {
+                this.init();
+            }
+
+            init() {
+                // 随机生成在画布中心附近
+                let t = Math.random() * Math.PI * 2;
+                // 让粒子主要分布在爱心轮廓上，带一点随机扩散
+                let pos = heartFunction(t, 10 + Math.random() * 3); // 基础大小范围
+                
+                this.x = width / 2 + pos.x;
+                this.y = height / 2 + pos.y;
+                
+                // 随机初速度，模拟扩散
+                this.vx = (Math.random() - 0.5) * 0.5;
+                this.vy = (Math.random() - 0.5) * 0.5;
+                
+                this.size = Math.random() * 2 + 0.5; // 粒子大小
+                this.life = Math.random() * 50 + 50; // 生命周期
+                this.baseLife = this.life;
+                
+                // 颜色：粉色到红色渐变
+                const val = Math.random();
+                if(val < 0.3) this.color = "rgba(255, 105, 180,"; // 热粉
+                else if(val < 0.6) this.color = "rgba(255, 20, 147,"; // 深粉
+                else this.color = "rgba(220, 20, 60,"; // 猩红
+            }
+
+            update(time) {
+                // 模拟心跳缩放效果
+                // $$ scale = 1 + 0.1 * \sin(time * 5) $$
+                const beat = 1 + 0.05 * Math.sin(time * 0.003); 
+                
+                this.x += this.vx * beat;
+                this.y += this.vy * beat;
+                
+                this.life--;
+                
+                // 生命周期结束后重置
+                if (this.life <= 0) {
+                    this.init();
+                }
+            }
+
+            draw() {
+                let opacity = this.life / this.baseLife;
+                ctx.fillStyle = this.color + opacity + ")";
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        // 初始化粒子群
+        function initParticles(count) {
+            particles = [];
+            for (let i = 0; i < count; i++) {
+                particles.push(new Particle());
+            }
+        }
+
+        let time = 0;
+        function animate() {
+            // 每一帧覆盖一层半透明黑色，形成拖尾效果
+            ctx.fillStyle = "rgba(0, 0, 0, 0.1)"; 
+            ctx.fillRect(0, 0, width, height);
+            
+            time++;
+            particles.forEach(p => {
+                p.update(time);
+                p.draw();
+            });
+            
+            requestAnimationFrame(animate);
+        }
+
+        window.addEventListener('resize', resize);
+        
+        // 启动
+        resize();
+        // 根据屏幕大小决定粒子数量，手机性能优化
+        const particleCount = window.innerWidth < 600 ? 300 : 600; 
+        initParticles(particleCount);
+        animate();
+    </script>
+</body>
+</html>
